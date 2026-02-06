@@ -1,60 +1,142 @@
-<!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Наличие Marketplace</title>
-  <link rel="stylesheet" href="styles.css" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-</head>
-<body>
-  <div class="page">
-    <header class="top">
-      <div>
-        <div class="h1">Наличие Marketplace</div>
-        <div class="sub">FBS + FBO (пока тестовые данные)</div>
+function statusBadgeClass(status) {
+  const s = (status || "").toLowerCase();
+  if (s === "ok") return "badge ok";
+  if (s === "low") return "badge low";
+  if (s === "oos") return "badge oos";
+  return "badge";
+}
+
+function statusLabel(status) {
+  const s = (status || "").toLowerCase();
+  if (s === "ok") return "OK";
+  if (s === "low") return "LOW";
+  if (s === "oos") return "OOS";
+  return s || "-";
+}
+
+// ===== Render =====
+function render() {
+  const rows = state.rows
+    .filter(passesCollection)
+    .filter(passesStatus)
+    .filter(passesChannel);
+
+  // meta
+  const total = rows.length;
+  const updated = state.updatedAt ?  · обновлено: ${state.updatedAt} : "";
+  el.meta.textContent = Найдено: ${total}${updated};
+
+  // list
+  if (!rows.length) {
+    el.list.innerHTML = <div class="empty">Ничего не найдено по фильтрам</div>;
+    return;
+  }
+
+  // сортировка: сначала oos, потом low, потом ok (чтобы проблемные сверху)
+  const rank = { oos: 0, low: 1, ok: 2 };
+  rows.sort((a, b) => {
+    const ra = rank[(a.status || "").toLowerCase()] ?? 9;
+    const rb = rank[(b.status || "").toLowerCase()] ?? 9;
+    if (ra !== rb) return ra - rb;
+    // потом по названию
+    return String(a.title  "").localeCompare(String(b.title  ""));
+  });
+
+  const html = rows.map(r => {
+    const vc = escapeHtml(r.vendor_code || "");
+    const title = escapeHtml(r.title || "");
+    const qty = safeNum(r.qty);
+
+    const qb = r.qty_breakdown || {};
+    const fbs = safeNum(qb.fbs);
+    const fbo = safeNum(qb.fbo);
+    // const all = safeNum(qb.all); // можно не использовать, если не показываешь
+
+    const lowThr = safeNum(r.low_threshold);
+
+    return `
+      <div class="rowCard">
+        <div class="rowTop">
+          <div class="rowTitle">${title}</div>
+          <div class="${statusBadgeClass(r.status)}">${statusLabel(r.status)}</div>
+        </div>
+
+        <div class="rowSub">${vc}</div>
+
+        <div class="rowGrid">
+          <div class="cell">
+            <div class="cellLabel">Всего</div>
+            <div class="cellValue">${qty}</div>
+          </div>
+          <div class="cell">
+            <div class="cellLabel">FBS</div>
+            <div class="cellValue">${fbs}</div>
+          </div>
+          <div class="cell">
+            <div class="cellLabel">FBO</div>
+            <div class="cellValue">${fbo}</div>
+          </div>
+          <div class="cell">
+            <div class="cellLabel">Порог</div>
+            <div class="cellValue">${lowThr}</div>
+          </div>
+        </div>
       </div>
+    `;
+  }).join("");
 
-      <button id="btnRefresh" class="iconBtn" title="Обновить">↻</button>
-    </header>
+  el.list.innerHTML = html;
+}
 
-    <section class="card">
-      <div class="label">Коллекции</div>
-      <select id="collectionSelect" class="select">
-        <option value="all">Все коллекции</option>
-      </select>
-    </section>
+// ===== Bind UI =====
+function bindUI() {
+  el.btnRefresh.addEventListener("click", async () => {
+    try {
+      await loadStock();
+    } catch (e) {
+      el.meta.textContent = Ошибка: ${e.message};
+    }
+  });
 
-    <section class="card">
-      <div class="label">Фильтр</div>
+  el.collectionSelect.addEventListener("change", (e) => {
+    state.collection = e.target.value;
+    render();
+  });
 
-      <div class="segRow">
-        <button class="seg active" data-status="ok">В наличии</button>
-        <button class="seg" data-status="oos">Нет</button>
-        <button class="seg" data-status="low">Заканчивается</button>
-      </div>
+  el.statusBtns.forEach(b => {
+    b.addEventListener("click", () => {
+      state.status = b.dataset.status; // in/out/low/all
+      setActive(el.statusBtns, state.status, "data-status");
+      render();
+    });
+  });
 
-      <div class="segRow">
-        <button class="seg active" data-channel="all">Все</button>
-        <button class="seg" data-channel="fbs">FBS</button>
-        <button class="seg" data-channel="fbo">FBO</button>
-      </div>
-    </section>
+  el.channelBtns.forEach(b => {
+    b.addEventListener("click", () => {
+      state.channel = b.dataset.channel; // all/fbs/fbo
+      setActive(el.channelBtns, state.channel, "data-channel");
+      render();
+    });
+  });
 
-    <section class="card">
-      <div class="label">Список</div>
-      <div id="meta" class="meta">Загрузка…</div>
-      <div id="list" class="list"></div>
-    </section>
+  // выставим активные кнопки при старте
+  setActive(el.statusBtns, state.status, "data-status");
+  setActive(el.channelBtns, state.channel, "data-channel");
+}
 
-    <footer class="legend">
-      Подсветка:
-      <span class="pill ok">OK</span>
-      <span class="pill low">LOW</span>
-      <span class="pill oos">OOS</span>
-    </footer>
-  </div>
+// ===== Init =====
+(async function init() {
+  bindUI();
 
-  <script src="app.js"></script>
-</body>
-</html>
+  try {
+    await loadCollections();
+  } catch (e) {
+    console.warn("collections error:", e);
+  }
+
+  try {
+    await loadStock();
+  } catch (e) {
+    el.meta.textContent = Ошибка: ${e.message};
+  }
+})();
