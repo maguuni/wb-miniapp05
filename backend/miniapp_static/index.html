@@ -1,11 +1,62 @@
 <!doctype html>
-<html>
+<html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <title>WB Mini App</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Наличие Marketplace</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <h1>Mini App работает</h1>
+  <div class="app">
+    <header class="topbar">
+      <div class="title">
+        <div class="h1">Наличие Marketplace</div>
+        <div class="sub">FBS + FBO (пока тестовые данные)</div>
+      </div>
+      <button id="btnRefresh" class="btn ghost">↻</button>
+    </header>
+
+    <section class="panel">
+      <div class="label">Коллекции</div>
+      <div id="collections" class="chips"></div>
+    </section>
+
+    <section class="panel">
+      <div class="label">Фильтр</div>
+      <div class="tabs">
+        <button class="tab active" data-tab="instock">В наличии</button>
+        <button class="tab" data-tab="oos">Нет</button>
+        <button class="tab" data-tab="low">Заканчивается</button>
+      </div>
+
+      <div class="seg">
+        <button class="segbtn active" data-channel="all">Все</button>
+        <button class="segbtn" data-channel="fbs">FBS</button>
+        <button class="segbtn" data-channel="fbo">FBO</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="row">
+        <div class="label">Список</div>
+        <div id="meta" class="meta"></div>
+      </div>
+
+      <div id="list" class="list"></div>
+
+      <div id="empty" class="empty hidden">
+        Ничего не найдено по выбранным фильтрам.
+      </div>
+
+      <div id="err" class="error hidden"></div>
+    </section>
+
+    <footer class="footer">
+      <div class="hint">Подсветка: <span class="pill ok">OK</span> <span class="pill low">LOW</span> <span class="pill oos">OOS</span></div>
+    </footer>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>
