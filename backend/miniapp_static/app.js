@@ -1,72 +1,63 @@
-forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      document.querySelectorAll(".segbtn").forEach(b=>b.classList.remove("active"));
-      btn.classList.add("active");
-      state.channel = btn.dataset.channel;
-      loadStock();
+forEach(o => {
+    const opt = document.createElement("option");
+    opt.value = o.key;
+    opt.textContent = o.name;
+    el.collectionSelect.appendChild(opt);
+  });
+
+  el.collectionSelect.value = state.collection;
+}
+
+async function loadStock() {
+  el.meta.textContent = "Загрузка…";
+  const data = await fetchJSON(API.stock);
+
+  // ожидаем {rows:[...], updated_at:"..."}
+  state.rows = data.rows || [];
+  state.updatedAt = data.updated_at || null;
+  render();
+}
+
+function bindUI() {
+  el.btnRefresh.addEventListener("click", async () => {
+    try { await loadStock(); } catch (e) { el.meta.textContent = Ошибка: ${e.message}; }
+  });
+
+  el.collectionSelect.addEventListener("change", async (e) => {
+    state.collection = e.target.value;
+    render();
+  });
+
+  el.statusBtns.forEach(b => {
+    b.addEventListener("click", () => {
+      state.status = b.dataset.status;
+      setActive(el.statusBtns, state.status, "data-status");
+      render();
     });
   });
 
-  btnRefresh.addEventListener("click", async ()=>{
-    await loadAll();
+  el.channelBtns.forEach(b => {
+    b.addEventListener("click", () => {
+      state.channel = b.dataset.channel;
+      setActive(el.channelBtns, state.channel, "data-channel");
+      render();
+    });
   });
 }
 
-async function loadStock(){
-  setError("");
-  setEmpty(false);
-  elList.innerHTML = "";
-  renderMeta(0);
+(async function init() {
+  bindUI();
 
-  const url = "/api/stock?" + qs({
-    tab: state.tab,
-    channel: state.channel,
-    collection: state.collection
-  });
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Не удалось загрузить остатки");
-
-  const data = await res.json();
-  const rows = data.rows || [];
-
-  renderMeta(rows.length);
-  if (rows.length === 0) {
-    setEmpty(true);
-    return;
-  }
-  renderRows(rows);
-}
-
-async function loadAll(){
-  try{
+  try {
     await loadCollections();
-    // Перерисуем активные коллекции красиво:
-    // просто повторно загрузим коллекции с учётом state.collection
-    // (это упрощение — работает стабильно)
-    elCollections.innerHTML = "";
-    const res = await fetch("/api/collections");
-    const data = await res.json();
-
-    const allBtn = document.createElement("button");
-    allBtn.className = "chip" + (state.collection === null ? " active" : "");
-    allBtn.textContent = "Все";
-    allBtn.onclick = () => { state.collection = null; loadAll(); };
-    elCollections.appendChild(allBtn);
-
-    data.forEach(c=>{
-      const btn = document.createElement("button");
-      btn.className = "chip" + (state.collection === c.key ? " active" : "");
-      btn.textContent = c.name;
-      btn.onclick = () => { state.collection = c.key; loadAll(); };
-      elCollections.appendChild(btn);
-    });
-
-    await loadStock();
-  } catch(e){
-    setError(e.message || "Ошибка");
+  } catch (e) {
+    // если коллекции вдруг упали — UI всё равно работает
+    console.warn("collections error:", e);
   }
-}
 
-bindTabs();
-loadAll();
+  try {
+    await loadStock();
+  } catch (e) {
+    el.meta.textContent = Ошибка: ${e.message};
+  }
+})();
